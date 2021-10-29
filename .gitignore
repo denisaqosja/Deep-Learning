@@ -7,9 +7,14 @@ __pycache__/
 *.so
 
 #My ignores
-.DS_Store
+*.DS_Store
 data/
 *.idea/
+Multi-Layer Perceptron/.DS_Store
+Multi-Layer Perceptron/src/.idea
+Multi-Layer Perceptron/src/.DS_Store
+Multi-Layer Perceptron/src/study.pkl
+.gitignore
 
 # Distribution / packaging
 .Python
