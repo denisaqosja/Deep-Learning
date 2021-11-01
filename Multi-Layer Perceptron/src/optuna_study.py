@@ -7,15 +7,17 @@ import joblib
 import pickle
 
 from model import MLP
-from train import Trainer
+from trainer import Trainer
 
 def objective(trial):
 
     model = MLP()
 
-    optimizers = trial.suggest_categorical("optimizer", ["SGD", "Adam", "RMSprop"])
+    optimizer = trial.suggest_categorical("optimizer", ["SGD", "Adam", "RMSprop"])
     lr = trial.suggest_loguniform("lr", 1e-5, 1e-2)
-    optimizer = getattr(optim, optimizers)(model.parameters(), lr)
+    optimizer = getattr(optim, optimizer)(model.parameters(), lr)
+
+    print(f"Parameters selected for trial, {optimizer = }")
 
     trainer = Trainer()
     trainer.setup_model()
@@ -27,11 +29,6 @@ def objective(trial):
     return accuracy
 
 
-def load_best_hyperParams():
-    with open("study.pkl", "rb") as file:
-        study = pickle.load(file)
-
-    print(study.best_trial.params)
 
 if __name__ == "__main__":
     study = optuna.create_study(direction="maximize")
@@ -39,5 +36,3 @@ if __name__ == "__main__":
 
     with open("study.pkl", "wb") as file:
         pickle.dump(study, file)
-
-    load_best_hyperParams()
