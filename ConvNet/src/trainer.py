@@ -5,24 +5,24 @@ from data import Dataset
 from model import CNN
 from utils import set_optimizer, set_regularizer
 from utils import export_model, save_model, load_model
+from visualization import visualize_kernels
 
 import torch.nn as nn
 import torch
 
 import numpy as np
 from tqdm import tqdm
-import time
-import os
+import time, os, pickle
+from argparse import ArgumentParser
 
-EPOCHS = 100
+EPOCHS = 2
 
 class Trainer:
-    def __init__(self, optimizerName = "Adam", lr = 3e-4, regularizerName = "L2"):
+    def __init__(self, optimizerName = "Adam", lr = 3e-4, regularizerName = "L2", **kwargs):
         self.lr = lr
         self.optimizerName = optimizerName
         self.regularizerName = regularizerName
 
-        #A dictionary with statistics: #TODO
         self.test_acc = 0
         self.test_loss = []
         self.train_loss = []
@@ -48,15 +48,12 @@ class Trainer:
         return
 
     def train_model(self):
-
         for epoch in range(EPOCHS):
 
             print(f"------------Epoch {epoch}-----------")
-
             start_training_time = time.time()
             self.train_epoch()
             print(f"TRAIN: Loss = {self.train_loss[-1]}, Training time (s) = {time.time() - start_training_time}")
-
             self.eval_epoch()
             print(f"TEST: Loss = {self.test_loss[-1]}, Test Accuracy = {self.test_acc}%")
 
@@ -65,7 +62,6 @@ class Trainer:
                 os.makedirs("models")
 
             path = os.path.join("models", "checkpoints.pth")
-
             save_model(path, epoch, self.model, self.optimizer, self.test_loss[-1])
 
 
@@ -79,6 +75,7 @@ class Trainer:
             self.optimizer.zero_grad()
             image, label = image.to(self.device), label.to(self.device)
             output = self.model(image)
+
             loss = self.lossFunction(output, label) + self.regularizer
             loss.backward(retain_graph=True)
             train_losses.append(loss.item())
@@ -114,7 +111,23 @@ class Trainer:
         return
 
 if __name__ == "__main__":
-    trainer = Trainer()
+
+    parser = ArgumentParser()
+    parser.add_argument("-f", "--file", default=None, help=("Load parameters from file"))
+    args = parser.parse_args()
+
+    if(args.file is None):
+        trainer = Trainer()
+    else:
+        if(os.path.exists(args.file)):
+            with open("optuna_study.pkl", "rb") as file:
+                study = pickle.load(file)
+            best_parameters = study.best_trial.params
+            print(f"These are the parameters selected from optuna, {best_parameters = }")
+            trainer = Trainer(**best_parameters)
+        else:
+            raise Exception("The file does not exist. Run optuna_study.py first!")
+
     trainer.setup_model()
     export_model()
     trainer.train_model()
