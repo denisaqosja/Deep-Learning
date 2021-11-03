@@ -15,7 +15,7 @@ from tqdm import tqdm
 import time, os, pickle
 from argparse import ArgumentParser
 
-EPOCHS = 2
+EPOCHS = 100
 
 class Trainer:
     def __init__(self, optimizerName = "Adam", lr = 3e-4, regularizerName = "L2", **kwargs):
@@ -61,7 +61,7 @@ class Trainer:
             if not os.path.exists("models"):
                 os.makedirs("models")
 
-            path = os.path.join("models", "checkpoints.pth")
+            path = os.path.join("models",f"checkpoint_epoch_{epoch}.pth")
             save_model(path, epoch, self.model, self.optimizer, self.test_loss[-1])
 
 
