@@ -1,7 +1,9 @@
 import torch.optim as optim
 import torch
 
-import os
+import os, json
+import matplotlib.pyplot as plt
+import numpy as np
 
 from model import VGG, ResNet, DenseNet
 
@@ -46,14 +48,6 @@ def set_regularizer(regularizerName, parameters):
 
     return loss_penalty
 
-
-def save_stats(train_loss, test_loss, test_acc):
-    stats = {
-        "Train_loss": train_loss,
-        "Test_loss": test_loss,
-        "Accuracy": test_acc
-    }
-
 def export_model(model):
     with open("network_architecture.txt", "w") as file:
         file.write(str(model.children))
@@ -76,8 +70,8 @@ def save_model(epoch, model, optimizer, test_loss):
 
     torch.save(checkpoint, path)
 
-def load_model(model, optimizer):
-    for epoch in range(15):
+def load_model(model, optimizer, epochs):
+    for epoch in range(epochs):
         path = savepath(epoch)
         checkpoint = torch.load(path)
 
@@ -86,3 +80,38 @@ def load_model(model, optimizer):
         val_loss = checkpoint["valid_loss"]
 
         return model, optimizer, val_loss
+
+def save_stats(stats):
+    savepath = os.path.join(os.getcwd(), "training_logs.json")
+    logs = {
+        "loss": {
+            "train": stats["train_loss"],
+        },
+        "accuracy": {
+            "train": stats["valid_loss"],
+            "valid": stats["accuracy"],
+        }
+    }
+    with open(savepath, "w") as f:
+        json.dump(logs, f)
+    return
+
+def plot_curves(stats, epochs):
+    plt.style.use("seaborn")
+    fig, ax = plt.subplots(1, 2)
+
+    epochs = np.arange(epochs)
+    ax[0].plot(epochs, stats["train_loss"], c="green", label="Train loss")
+    ax[0].plot(epochs, stats["valid_loss"], c="blue", label="Test loss")
+    ax[0].legend(loc="best")
+    ax[0].set_xlabel("Epochs")
+    ax[0].set_ylabel("CE Loss")
+    ax[0].set_title("Loss curves")
+
+    ax[1].plot(epochs, stats["accuracy"], c="red", label="Accuracy")
+    ax[1].legend(loc="best")
+    ax[1].set_xlabel("Epochs")
+    ax[1].set_ylabel("Accuracy")
+    ax[1].set_title("Validation accuracy")
+
+    plt.show()

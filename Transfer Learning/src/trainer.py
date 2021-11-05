@@ -8,7 +8,7 @@ import time
 
 from data import Dataset
 from utils import set_model, set_optimizer, set_regularizer
-from utils import save_model, export_model
+from utils import save_model, export_model, save_stats, plot_curves
 
 EPOCHS = 15
 
@@ -33,7 +33,7 @@ class Trainer():
     def setup_model(self):
         self.load_data()
 
-        self.model = set_model("ResNet")
+        self.model = set_model("DenseNet")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
         export_model(self.model)
@@ -46,7 +46,6 @@ class Trainer():
         return
 
     def train_model(self):
-
         for epoch in range(EPOCHS):
             start_training_time = time.time()
             print(f"--------------EPOCH {epoch}--------------")
@@ -62,6 +61,9 @@ class Trainer():
             self.stats["accuracy"].append(test_acc)
 
             save_model(epoch, self.model, self.optimizer, test_loss)
+
+        save_stats(stats=self.stats)
+        plot_curves(stats=self.stats, epochs=EPOCHS)
 
         return
 
@@ -107,28 +109,8 @@ class Trainer():
         return test_loss, accuracy
 
 
-    def plot_curves(self, stats):
-        plt.style.use("seaborn")
-        fig, ax = plt.subplot(1,2)
-
-        epochs = np.arange(EPOCHS)
-        ax[0] = plt.plot(epochs, stats["train_loss"], c="green", label="Train loss")
-        ax[0] = plt.plot(epochs, stats["valid_loss"], c="blue", label="Test loss")
-        ax[0].legend(loc="best")
-        ax[0].set_xlabel("Epochs")
-        ax[0].set_ylabel("CE Loss")
-        ax[0].title("Loss curves")
-
-        ax[1] = plt.plot(epochs, stats["accuracy"], c="red", label="Accuracy")
-        ax[1].legend(loc="best")
-        ax[1].set_xlabel("Epochs")
-        ax[1].set_ylabel("Accuracy")
-        ax[1].title("Validation accuracy")
-
-        plt.show()
-
 if __name__=="__main__":
     trainer = Trainer()
     trainer.setup_model()
     trainer.train_model()
-    trainer.plot_curves()
+

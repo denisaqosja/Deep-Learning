@@ -18,21 +18,6 @@ class Trainer_SVM():
         datasets = Dataset()
         self.train_loader, self.test_loader = datasets.data_loader()
 
-        #prepare the test dataset
-        """
-        self.test_dataset_images = []
-        self.test_dataset_labels = []
-
-        for id, (images, labels) in enumerate(self.test_loader):
-            for image in images:
-                #print(image.shape)
-                self.test_dataset_images.append(image.numpy())
-            for label in labels:
-                self.test_dataset_labels.append(label.numpy())
-
-        return
-        """
-
     def resnet_featureExtractor(self, data_loader):
 
         activations_list = []
