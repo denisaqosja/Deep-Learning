@@ -1,9 +1,6 @@
 import torch.nn as nn
 import torch
 
-import numpy as np
-
-
 class LSTM(nn.Module):
     """
     To obtain the data as a sequence, process each image in rows
@@ -27,29 +24,50 @@ class LSTM(nn.Module):
     def forward(self, input):
         b_size, channels, height, width = input.shape
 
-        # sequential input of size: batch_size, sequence length, input_dim=rows=28
+        """sequential input of size: batch_size, sequence length, input_dim=rows=28"""
         input_sequential = input.view(b_size, channels * height, width)
 
         h_state, c_state = self.init_states(b_size)
         lstm_output, (hidden, cell) = self.lstm_layer(input_sequential, (h_state, c_state))
 
-        # ouput is of size: batch_size, sequence_length, hidden_dim
-        print(lstm_output.shape)
+        """ouput is of size: batch_size, sequence_length, hidden_dim"""
         y = self.classifier(lstm_output[:, -1, :])
 
         return y
 
 
+
 class LSTM_scratch(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim=10, num_layers=1):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers=1):
+        super().__init__()
+        self.input_dim = input_dim
+
+        self.lstm_layer_1 = LSTM_layer(self.input_dim, hidden_dim)
+        self.lstm_layer_2 = LSTM_layer(hidden_dim, hidden_dim)
+
+        self.classifier = nn.Linear(in_features=hidden_dim, out_features=output_dim)
+
+
+    def forward(self, input):
+        b_size, channels, height, width = input.shape
+        seq_length = channels * height
+        input_sequential = input.view(b_size, seq_length, self.input_dim)
+
+        output_tensor = self.lstm_layer_1.forward(input_sequential)
+        output_tensor = self.lstm_layer_2.forward(output_tensor)
+
+        """classification, using the last element of the sequence at the last layer"""
+        y = self.classifier(output_tensor[:, -1, :])
+
+        return y
+
+class LSTM_layer(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
-        self.num_layers = num_layers
 
-        self.init_layers(self.input_dim, self.hidden_dim)
-
-        self.classifier = nn.Linear(in_features=self.hidden_dim, out_features=output_dim)
+        self.init_layers(input_dim, hidden_dim)
 
     def init_layers(self, input_dim, hidden_dim):
         # forget gate
@@ -69,44 +87,27 @@ class LSTM_scratch(nn.Module):
         self.linear_H_output = nn.Linear(in_features=hidden_dim, out_features=hidden_dim)
         self.sigmoid_output = nn.Sigmoid()
 
-    def forward(self, input):
-        b_size, channels, height, width = input.shape
-        seq_length = channels * height
-        input_sequential = input.view(b_size, seq_length, self.input_dim)
+    def forward(self, input_sequential):
+        b_size, seq_length, rows = input_sequential.shape
+        hidden_state, cell_state = self.init_states(b_size)
+        output_list = []
 
-        hidden_states, cell_states = self.init_states(b_size)
+        for t_step in range(seq_length):
+            input_rows = input_sequential[:, t_step, :]
 
-        for i in range(self.num_layers):
-            hidden_state, cell_state = hidden_states[i, :], cell_states[i, :]
-            output_list = []
+            out_fg = self.forget_gate(input_rows, hidden_state)
+            out_ig = self.input_gate(input_rows, hidden_state) * self.cell_memory(input_rows, hidden_state)
 
-            for t_step in range(seq_length):
-                input_rows = input_sequential[:, t_step, :]
+            new_cell_state = cell_state * out_fg + out_ig
+            new_hidden_state = self.tanh(new_cell_state) * self.output_gate(input_rows, hidden_state)
 
-                out_fg = self.forget_gate(input_rows, hidden_state)
-                out_ig = self.input_gate(input_rows, hidden_state) * self.cell_memory(input_rows, hidden_state)
-
-                new_cell_state = cell_state * out_fg + out_ig
-                new_hidden_state = self.tanh(new_cell_state) * self.output_gate(input_rows, hidden_state)
-
-                hidden_state = new_hidden_state
-                cell_state = new_cell_state
-                output_list.append(new_hidden_state)
+            hidden_state = new_hidden_state
+            cell_state = new_cell_state
+            output_list.append(new_hidden_state)
 
             output_tensors = torch.stack(output_list, dim=1)
-            """Feed the output of this layer to the next layer of LSTM"""
-            input_sequential = output_tensors
 
-            """Initialize layers for the next layer of LSTM"""
-            self.init_layers(input_dim=self.hidden_dim, hidden_dim=self.hidden_dim)
-
-        """Re-initialize layers for the next batch of images"""
-        self.init_layers(input_dim=self.input_dim, hidden_dim=self.hidden_dim)
-
-        """classification, using the last element of the sequence at the last layer"""
-        y = self.classifier(output_tensors[:, -1, :])
-
-        return y
+        return output_tensors
 
     def forget_gate(self, input, hidden_state):
         input_fg = self.linear_I_forget(input)
@@ -137,8 +138,8 @@ class LSTM_scratch(nn.Module):
         return output_mem
 
     def init_states(self, batch_size):
-        hidden_state = torch.randn(self.num_layers, batch_size, self.hidden_dim)
-        cell_state = torch.randn(self.num_layers, batch_size, self.hidden_dim)
+        hidden_state = torch.randn(batch_size, self.hidden_dim)
+        cell_state = torch.randn(batch_size, self.hidden_dim)
 
         return hidden_state, cell_state
 

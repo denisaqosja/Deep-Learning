@@ -5,6 +5,7 @@ import os, json
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 from model import LSTM, LSTM_scratch, GRU
 
 def set_model(required_model):

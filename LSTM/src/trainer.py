@@ -9,7 +9,7 @@ from data import Dataset
 from utils import set_model, set_optimizer, set_regularizer
 from utils import save_model, export_model, save_stats, plot_curves
 
-EPOCHS = 15
+EPOCHS = 20
 
 class Trainer():
     def __init__(self, optimizerName="Adam", regularizerName="L2"):
@@ -111,7 +111,7 @@ class Trainer():
 
 
 if __name__=="__main__":
-    trainer = Trainer()
+    trainer = Trainer("Adam", "L2")
     trainer.setup_model()
     trainer.train_model()
 
