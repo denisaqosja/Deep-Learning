@@ -3,58 +3,53 @@ import torch
 
 
 class DAE(nn.Module):
-    def __init__(self, size=[128, 64, 32], latent_dim=16):
+    def __init__(self, size=[32, 64, 128], latent_dim=16):
         super().__init__()
         self.size = size
 
         self.encoder = nn.Sequential(
             #1x28x28
-            nn.Conv2d(in_channels=1, out_channels=size[0], kernel_size=5, stride=1),
+            nn.Conv2d(in_channels=1, out_channels=size[0], kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            #128x24x24
-            nn.Conv2d(in_channels=size[0], out_channels=size[1], kernel_size=5, stride=1),
-            #64x20x20
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            #32x14x14
+            nn.Conv2d(in_channels=size[0], out_channels=size[1], kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=size[1], out_channels=size[2], kernel_size=5, stride=1),
-            #32x20x20
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            #64x7x7
+            nn.Conv2d(in_channels=size[1], out_channels=size[2], kernel_size=3, stride=1),
+            #12857x5
         )
-
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, return_indices=True)
-        # 32x8x8
 
         self.fc = nn.Sequential(
             #encoder
-            nn.Linear(in_features=size[2]*8*8, out_features=latent_dim),
+            nn.Linear(in_features=size[2]*5*5, out_features=latent_dim),
             #dec
-            nn.Linear(in_features=latent_dim, out_features=size[2]*8*8)
+            nn.Linear(in_features=latent_dim, out_features=size[2]*5*5)
         )
 
-        self.out_layer = nn.MaxUnpool2d(kernel_size=2, stride=2),
-
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=size[2], out_channels=size[1], kernel_size=5),
+            nn.ConvTranspose2d(in_channels=size[2], out_channels=size[1], kernel_size=3, stride=2, output_padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=size[1], out_channels=size[0], kernel_size=5),
+            nn.ConvTranspose2d(in_channels=size[1], out_channels=size[0], kernel_size=3, stride=2, output_padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=size[0], out_channels=1, kernel_size=5),
+            nn.ConvTranspose2d(in_channels=size[0], out_channels=1, kernel_size=3, stride=1),
+            #checkerboard artifacts
+            nn.Conv2d(in_channels=1, out_channels=1, kernel_size=1, stride=1, padding_mode="same"),
             nn.Sigmoid()
-
         )
 
 
     def forward(self, input):
         noisy_input = self.add_noise(input)
         out_enc = self.encoder(noisy_input)
-        out_pool, out_indices = self.pool(out_enc)
 
         batch_size = out_enc.shape[0]
-        out_flattened = out_pool.view(batch_size, -1)
-        out_ = self.fc(out_flattened)
-        out_unflattened = out_.view(batch_size, self.size[2], 8, 8)
+        out_flattened = out_enc.view(batch_size, -1)
+        out_fc = self.fc(out_flattened)
+        out_unflattened = out_fc.view(batch_size, self.size[2], 5, 5)
 
-        unpooled_out = nn.MaxUnpool2d(kernel_size=2, stride=2)(out_unflattened, out_indices)
-        recons = self.decoder(unpooled_out)
-
+        recons = self.decoder(out_unflattened)
         return recons
 
     def add_noise(self, input):
@@ -66,62 +61,65 @@ class DAE(nn.Module):
         return noisy_input.clamp(0,1)
 
 class VAE(nn.Module):
-    def __init__(self, size=[128, 64, 32], latent_dim=16):
+    def __init__(self, size=[32, 64, 128], latent_dim=16):
         super().__init__()
         self.size = size
 
         self.encoder = nn.Sequential(
             # 1x28x28
-            nn.Conv2d(in_channels=1, out_channels=size[0], kernel_size=5, stride=1),
+            nn.Conv2d(in_channels=1, out_channels=size[0], kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            # 128x24x24
-            nn.Conv2d(in_channels=size[0], out_channels=size[1], kernel_size=5, stride=1),
-            # 64x20x20
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # 32x14x14
+            nn.Conv2d(in_channels=size[0], out_channels=size[1], kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=size[1], out_channels=size[2], kernel_size=5, stride=1),
-            # 32x20x20
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # 64x7x7
+            nn.Conv2d(in_channels=size[1], out_channels=size[2], kernel_size=3, stride=1),
+            # 12857x5
         )
-
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, return_indices=True)
-        # 32x8x8
 
         self.fc = nn.Sequential(
             # encoder
-            nn.Linear(in_features=size[2]*8*8, out_features=latent_dim),
+            nn.Linear(in_features=size[2]*5*5, out_features=latent_dim),
             # dec
-            nn.Linear(in_features=latent_dim, out_features=size[2]*8*8)
+            nn.Linear(in_features=latent_dim, out_features=size[2]*5*5)
         )
 
-        self.fc1_enc = nn.Linear(in_features=size[2]*8*8, out_features=128)
+        self.fc1_enc = nn.Linear(in_features=size[2]*5*5, out_features=128)
         self.fc2_mean = nn.Linear(in_features=128, out_features=latent_dim)
         self.fc2_var = nn.Linear(in_features=128, out_features=latent_dim)
 
         self.fc_dec1 = nn.Linear(in_features=latent_dim, out_features=128)
-        self.fc_dec2 = nn.Linear(in_features=128, out_features=size[2]*8*8)
+        self.fc_dec2 = nn.Linear(in_features=128, out_features=size[2]*5*5)
 
-        self.unpool_layer = nn.MaxUnpool2d(kernel_size=2, stride=2),
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=size[2], out_channels=size[1], kernel_size=5),
+            nn.Conv2d(in_channels=size[2], out_channels=size[1], kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=size[1], out_channels=size[0], kernel_size=5),
+            nn.Upsample(scale_factor=2, mode="bicubic"),
+            nn.Conv2d(in_channels=size[1], out_channels=size[0], kernel_size=3, stride=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=size[0], out_channels=1, kernel_size=5),
+            nn.Upsample(scale_factor=2, mode="bicubic"),
+            nn.Conv2d(in_channels=size[0], out_channels=1, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Upsample(scale_factor=2, mode="bicubic"),
+            nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1),
             nn.Sigmoid()
         )
 
-    def reparametrize(self, mean, var):
-        eps = torch.randn(var.shape)
-        z = eps * var + mean
+    def reparametrize(self, mean, log_var):
+        var_ = torch.exp(0.5*log_var)
+        eps = torch.randn(var_.shape)
+        z = eps * var_ + mean
         return z
 
     def forward(self, input):
         out_enc = self.encoder(input)
-        out_pool, out_indices = self.pool(out_enc)
 
         # flattening
-        batch_size = out_pool.shape[0]
-        out_flattened = out_pool.view(batch_size, -1)
+        batch_size = out_enc.shape[0]
+        out_flattened = out_enc.view(batch_size, -1)
 
         out_fc1 = self.fc1_enc(out_flattened)
         mean = self.fc2_mean(out_fc1)
@@ -132,9 +130,7 @@ class VAE(nn.Module):
         out_fc_dec2 = self.fc_dec2(out_fc_dec1)
 
         # unflattening
-        out_unflattened = out_fc_dec2.view(batch_size, self.size[2], 8, 8)
-
-        out_unpool = nn.MaxUnpool2d(kernel_size=2, stride=2)(out_unflattened, out_indices)
-        recons = self.decoder(out_unpool)
+        out_unflattened = out_fc_dec2.view(batch_size, self.size[2], 5, 5)
+        recons = self.decoder(out_unflattened)
 
         return recons
